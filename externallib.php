@@ -24,8 +24,86 @@ require_once("../../config.php");
 require_once($CFG->libdir . "/externallib.php");
 require_once($CFG->libdir . "/filelib.php");
 require_once($CFG->libdir . "/datalib.php");
+require_once($CFG->libdir . "/badgeslib.php");
 
 class local_badgesapi_external extends external_api {
+
+    public static function get_badges_report_parameters() {
+        return new external_function_parameters(
+                array('courseid' => new external_value(PARAM_INT, 'Course id', VALUE_DEFAULT, 0))
+        );
+    }
+
+    public static function get_badges_report($courseid = 0) {
+        global $DB;
+
+        $params = self::validate_parameters(self::get_badges_report_parameters(), array('courseid' => $courseid));
+        $context = context_course::instance($courseid);
+        self::validate_context($context);
+
+        $badges = $DB->get_records_sql("SELECT 
+                                            b.id,
+                                            b.name AS badgename,
+                                            COUNT(u.username) AS userscount,
+                                            f.contextid,
+                                            f.component,
+                                            f.filearea,
+                                            f.itemid,
+                                            f.filepath,
+                                            f.filename
+                                        FROM
+                                            {badge_issued} AS d
+                                                JOIN
+                                            {badge} AS b ON d.badgeid = b.id
+                                                JOIN
+                                            {user} AS u ON d.userid = u.id
+                                                JOIN
+                                            {user_enrolments} AS ue ON ue.userid = u.id
+                                                JOIN
+                                            {enrol} AS en ON en.id = ue.enrolid
+                                                JOIN
+                                            {badge_criteria} AS t ON b.id = t.badgeid
+                                                JOIN
+                                            {files} AS f ON f.id = (SELECT 
+                                                    MAX(f2.id)
+                                                FROM
+                                                    {files} AS f2
+                                                WHERE
+                                                    b.id = f2.itemid
+                                                        AND f2.component LIKE 'badges'
+                                                        AND f2.filearea LIKE 'badgeimage')
+                                        WHERE
+                                            t.criteriatype <> 0
+                                                AND en.courseid = :couseid
+                                        GROUP BY b.name", array('couseid' => $courseid));
+
+        $tmpBadges = array();
+
+        foreach ($badges as $badge) {
+            $tmpBadge = array();
+            
+            $imageurl = moodle_url::make_pluginfile_url($badge->contextid, 'badges', 'badgeimage', $badge->id, '/', "f1", false);    
+            $imageurl->param('refresh', rand(1, 10000));
+
+            $tmpBadge['badgename'] = $badge->badgename;
+            $tmpBadge['userscount'] = $badge->userscount;
+            $tmpBadge['badgeimageurl'] = $imageurl->out();
+
+            $tmpBadges[] = $tmpBadge;
+        }
+
+        return $tmpBadges;
+    }
+
+    public static function get_badges_report_returns() {
+        return new external_multiple_structure(
+                new external_single_structure(
+                array(
+            'badgename' => new external_value(PARAM_TEXT, 'Badge name'),
+            'userscount' => new external_value(PARAM_INT, 'Users count'),
+            'badgeimageurl' => new external_value(PARAM_TEXT, 'Badge image URL')
+        )));
+    }
 
     /**
      * Returns description of method parameters
@@ -52,7 +130,8 @@ class local_badgesapi_external extends external_api {
         $context = context_course::instance($courseid);
         self::validate_context($context);
 
-        $userprofilefields = $DB->get_records_select('user_info_field', 'id > 0 AND shortname IN ("Datumrojstva", "VIZ")', array(), 'id', 'id, shortname, name');
+        $userprofilefields = $DB->get_records_select('user_info_field',
+                'id > 0 AND shortname IN ("Datumrojstva", "VIZ")', array(), 'id', 'id, shortname, name');
 
         $allUsers = array();
 
@@ -88,14 +167,15 @@ class local_badgesapi_external extends external_api {
             $addFields = $DB->get_records_select('user_info_data', 'userid = ' . $user->id, array(), 'fieldid');
 
             foreach ($userprofilefields as $profilefieldid => $profilefield) {
-                $tmpUser[$profilefield->shortname] = strip_tags($DB->get_field('user_info_data', 'data', array('fieldid' => $profilefieldid, 'userid' => $user->id)));
+                $tmpUser[$profilefield->shortname] = strip_tags($DB->get_field('user_info_data', 'data',
+                                array('fieldid' => $profilefieldid, 'userid' => $user->id)));
             }
-            
+
             $tmpUser['badges'] = array();
-            
+
             foreach ($certs as $cert) {
                 $badge = array();
-                
+
                 $badge['id'] = $cert->id;
                 $badge['uniquehash'] = $cert->uniquehash;
                 $badge['dateissued'] = $cert->dateissued;
@@ -106,8 +186,8 @@ class local_badgesapi_external extends external_api {
                 $badge['issuerurl'] = $cert->issuerurl;
                 $badge['issuercontact'] = $cert->issuercontact;
                 $badge['courseid'] = $cert->courseid;
-                        
-                $tmpUser['badges'][] = $badge;        
+
+                $tmpUser['badges'][] = $badge;
             }
 
             // datum rojstva - custom
