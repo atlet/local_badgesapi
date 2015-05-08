@@ -81,28 +81,29 @@ class local_badgesapi_external extends external_api {
 
         foreach ($badges as $badge) {
             $tmpBadge = array();
-            
-            $imageurl = moodle_url::make_pluginfile_url($badge->contextid, 'badges', 'badgeimage', $badge->id, '/', "f1", false);    
+
+            $imageurl = moodle_url::make_pluginfile_url($badge->contextid, 'badges', 'badgeimage', $badge->id, '/',
+                            "f1", false);
             $imageurl->param('refresh', rand(1, 10000));
 
             $tmpBadge['badgename'] = $badge->badgename;
             $tmpBadge['userscount'] = $badge->userscount;
             $tmpBadge['badgeimageurl'] = $imageurl->out();
 
-            $tmpBadges[] = $tmpBadge;
+            $tmpBadges['badges'][] = $tmpBadge;
         }
 
         return $tmpBadges;
     }
 
     public static function get_badges_report_returns() {
-        return new external_multiple_structure(
-                new external_single_structure(
-                array(
-            'badgename' => new external_value(PARAM_TEXT, 'Badge name'),
-            'userscount' => new external_value(PARAM_INT, 'Users count'),
-            'badgeimageurl' => new external_value(PARAM_TEXT, 'Badge image URL')
-        )));
+        return new external_single_structure(array('badges' => new external_multiple_structure(
+                    new external_single_structure(
+                    array(
+                'badgename' => new external_value(PARAM_TEXT, 'Badge name'),
+                'userscount' => new external_value(PARAM_INT, 'Users count'),
+                'badgeimageurl' => new external_value(PARAM_TEXT, 'Badge image URL')
+        )))));
     }
 
     /**
