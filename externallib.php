@@ -75,6 +75,7 @@ class local_badgesapi_external extends external_api {
                                         WHERE
                                             t.criteriatype <> 0
                                                 AND en.courseid = :couseid
+                                                AND d.visible = 1
                                         GROUP BY b.name", array('couseid' => $courseid));
 
         $tmpBadges = array();
