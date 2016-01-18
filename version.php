@@ -22,3 +22,4 @@ $plugin->requires = 2014051200;   // Moodle 2.7.0 is required.
 $plugin->cron     = 0;
 $plugin->release = '0.2';
 $plugin->maturity = MATURITY_STABLE;
+$plugin->component = 'local_badgesapi'; 
